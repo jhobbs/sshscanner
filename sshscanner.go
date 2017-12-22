@@ -5,25 +5,27 @@ import "io"
 import "os"
 import "math"
 import "net"
+import "time"
 
 // Increments an IP address.  Only works for Ipv4.
 // It seems strange that this isn't built into the default net.IP,
 // but I guess it's not a common operation.
-func increment_ip(ip net.IP) net.IP {
+func increment_ip(ip net.IP) {
 	v4 := ip.To4()
 	for i := 3; i >= 0; i-- {
 		if v4[i] < 255 {
 			v4[i] += 1
-			return v4
+			return
 		}
 
 		v4[i] = 0
 	}
-	return v4
+	return
 }
 
 func scan_address(ip net.IP, ch chan<- string) {
-	conn, err := net.Dial("tcp", ip.String()+":22")
+	timeout := time.Duration(10) * time.Second
+	conn, err := net.DialTimeout("tcp", ip.String()+":22", timeout)
 	if err != nil {
 		ch <- fmt.Sprintf("Connection error: %s\n", err)
 		return
@@ -31,10 +33,10 @@ func scan_address(ip net.IP, ch chan<- string) {
 
 	output := make([]byte, 4096)
 	for {
+		conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 		n, err := conn.Read(output)
 		if err != nil {
 			if err != io.EOF {
-				ch <- fmt.Sprintf("read error: %s\n", err)
 				ch <- fmt.Sprintf("%s: read error %s\n", ip, err)
 				break
 			}
@@ -52,11 +54,13 @@ func scan_address(ip net.IP, ch chan<- string) {
 }
 
 func scan_subnet(subnet_cidr string) {
-	address, network, _ := net.ParseCIDR(subnet_cidr)
+	_, network, _ := net.ParseCIDR(subnet_cidr)
 	ch := make(chan string)
-	for ; network.Contains(address); address = increment_ip(address) {
-		dup := make(net.IP, len(address))
-		copy(dup, address)
+	start := make(net.IP, len(network.IP))
+	copy(start, network.IP)
+	for addy := start; network.Contains(addy); increment_ip(addy) {
+		dup := make(net.IP, len(addy))
+		copy(dup, addy)
 		go scan_address(dup, ch)
 	}
 
