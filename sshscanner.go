@@ -6,6 +6,7 @@ import "os"
 import "math"
 import "net"
 import "time"
+import "flag"
 
 // Increments an IP address.  Only works for Ipv4.
 // It seems strange that this isn't built into the default net.IP,
@@ -53,7 +54,7 @@ func scan_address(ip net.IP, results chan<- string, errors chan<- string) {
 	conn.Close()
 }
 
-func scan_subnet(subnet_cidr string) {
+func scan_subnet(subnet_cidr string, concurrency int) {
 	_, network, _ := net.ParseCIDR(subnet_cidr)
 	results := make(chan string, 100)
 	errors := make(chan string, 100)
@@ -61,7 +62,7 @@ func scan_subnet(subnet_cidr string) {
 	copy(addy, network.IP)
 	current := 0
 	total := 0
-	max := 500
+	max := concurrency
 	bits, _ := network.Mask.Size()
 	size := int(math.Pow(2, float64(32-bits)))
 	for {
@@ -95,6 +96,9 @@ func main() {
 		fmt.Println("syntax: sshscanner <subnet-cidr>")
 		os.Exit(1)
 	}
-	subnet := os.Args[1]
-	scan_subnet(subnet)
+	concurrency := flag.Int("concurrency", 200, "number of simultaneous connections")
+	flag.Parse()
+	fmt.Println(*concurrency)
+	subnet := flag.Args()[0]
+	scan_subnet(subnet, *concurrency)
 }
