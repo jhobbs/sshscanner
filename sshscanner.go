@@ -23,11 +23,11 @@ func increment_ip(ip net.IP) {
 	return
 }
 
-func scan_address(ip net.IP, ch chan<- string) {
+func scan_address(ip net.IP, results chan<- string, errors chan<- string) {
 	timeout := time.Duration(10) * time.Second
 	conn, err := net.DialTimeout("tcp", ip.String()+":22", timeout)
 	if err != nil {
-		ch <- fmt.Sprintf("Connection error: %s\n", err)
+		errors <- fmt.Sprintf("Connection error: %s\n", err)
 		return
 	}
 
@@ -37,15 +37,15 @@ func scan_address(ip net.IP, ch chan<- string) {
 		n, err := conn.Read(output)
 		if err != nil {
 			if err != io.EOF {
-				ch <- fmt.Sprintf("%s: read error %s\n", ip, err)
+				errors <- fmt.Sprintf("%s: read error %s\n", ip, err)
 				break
 			}
 			if n == 0 {
-				ch <- fmt.Sprintf("%s: EOF with no data\n", ip)
+				errors <- fmt.Sprintf("%s: EOF with no data\n", ip)
 				break
 			}
 		}
-		ch <- fmt.Sprintf("%s %s", ip.String(), output[:n])
+		results <- fmt.Sprintf("%s %s", ip.String(), output[:n])
 		if n > 0 {
 			break
 		}
@@ -55,19 +55,27 @@ func scan_address(ip net.IP, ch chan<- string) {
 
 func scan_subnet(subnet_cidr string) {
 	_, network, _ := net.ParseCIDR(subnet_cidr)
-	ch := make(chan string)
+	results := make(chan string, 100)
+	errors := make(chan string, 100)
 	start := make(net.IP, len(network.IP))
 	copy(start, network.IP)
 	for addy := start; network.Contains(addy); increment_ip(addy) {
 		dup := make(net.IP, len(addy))
 		copy(dup, addy)
-		go scan_address(dup, ch)
+		go scan_address(dup, results, errors)
 	}
 
 	bits, _ := network.Mask.Size()
 	size := int(math.Pow(2, float64(32-bits)))
-	for i := 0; i < size-1; i++ {
-		fmt.Print(<-ch)
+	for i := 0; i < size-1; {
+		select {
+		case result := <-results:
+			i++
+			fmt.Print(result)
+		case error_msg := <-errors:
+			fmt.Fprint(os.Stderr, error_msg)
+			i++
+		}
 	}
 }
 
