@@ -22,7 +22,6 @@ func increment_ip(ip net.IP) net.IP {
 }
 
 func scan_address(ip net.IP) {
-	fmt.Println(ip)
 	conn, err := net.Dial("tcp", ip.String()+":22")
 	if err != nil {
 		fmt.Printf("Connection error: %s\n", err)
@@ -36,17 +35,16 @@ func scan_address(ip net.IP) {
 			fmt.Printf("Read error: %s\n", err)
 			break
 		}
-		fmt.Printf("Read %d bytes", n)
-		fmt.Printf("output: %s", output[:n])
+		fmt.Printf("%s %s", ip.String(), output[:n])
+		if n > 0 {
+			break
+		}
 	}
+	conn.Close()
 }
 
 func scan_subnet(subnet_cidr string) {
-	fmt.Println("scanning subnet: " + subnet_cidr)
 	address, network, _ := net.ParseCIDR(subnet_cidr)
-	fmt.Println("address: " + address.String())
-	fmt.Println("mask: " + network.Mask.String())
-
 	for ; network.Contains(address); address = increment_ip(address) {
 		scan_address(address)
 	}
