@@ -99,7 +99,6 @@ func main() {
 	concurrency := flag.Int("concurrency", 200, "number of simultaneous connections")
 	timeout := flag.Int("timeout", 10, "connection timeout in seconds")
 	flag.Parse()
-	fmt.Println(*concurrency)
 	subnet := flag.Args()[0]
 	scan_subnet(subnet, *concurrency, *timeout)
 }
