@@ -57,24 +57,35 @@ func scan_subnet(subnet_cidr string) {
 	_, network, _ := net.ParseCIDR(subnet_cidr)
 	results := make(chan string, 100)
 	errors := make(chan string, 100)
-	start := make(net.IP, len(network.IP))
-	copy(start, network.IP)
-	for addy := start; network.Contains(addy); increment_ip(addy) {
-		dup := make(net.IP, len(addy))
-		copy(dup, addy)
-		go scan_address(dup, results, errors)
-	}
-
+	addy := make(net.IP, len(network.IP))
+	copy(addy, network.IP)
+	current := 0
+	total := 0
+	max := 500
 	bits, _ := network.Mask.Size()
 	size := int(math.Pow(2, float64(32-bits)))
-	for i := 0; i < size-1; {
+	for {
+		for current <= max {
+			dup := make(net.IP, len(addy))
+			copy(dup, addy)
+			go scan_address(dup, results, errors)
+			increment_ip(addy)
+			current++
+		}
+
 		select {
 		case result := <-results:
-			i++
+			total++
+			current--
 			fmt.Print(result)
 		case error_msg := <-errors:
 			fmt.Fprint(os.Stderr, error_msg)
-			i++
+			total++
+			current--
+		}
+
+		if total == size {
+			break
 		}
 	}
 }
