@@ -24,8 +24,8 @@ func increment_ip(ip net.IP) {
 	return
 }
 
-func scan_address(ip net.IP, results chan<- string, errors chan<- string) {
-	timeout := time.Duration(10) * time.Second
+func scan_address(ip net.IP, results chan<- string, errors chan<- string, timeout_secs int) {
+	timeout := time.Duration(timeout_secs) * time.Second
 	conn, err := net.DialTimeout("tcp", ip.String()+":22", timeout)
 	if err != nil {
 		errors <- fmt.Sprintf("Connection error: %s\n", err)
@@ -34,7 +34,7 @@ func scan_address(ip net.IP, results chan<- string, errors chan<- string) {
 
 	output := make([]byte, 4096)
 	for {
-		conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+		conn.SetReadDeadline(time.Now().Add(timeout))
 		n, err := conn.Read(output)
 		if err != nil {
 			if err != io.EOF {
@@ -54,7 +54,7 @@ func scan_address(ip net.IP, results chan<- string, errors chan<- string) {
 	conn.Close()
 }
 
-func scan_subnet(subnet_cidr string, concurrency int) {
+func scan_subnet(subnet_cidr string, concurrency int, timeout int) {
 	_, network, _ := net.ParseCIDR(subnet_cidr)
 	results := make(chan string, 100)
 	errors := make(chan string, 100)
@@ -69,7 +69,7 @@ func scan_subnet(subnet_cidr string, concurrency int) {
 		for current <= max {
 			dup := make(net.IP, len(addy))
 			copy(dup, addy)
-			go scan_address(dup, results, errors)
+			go scan_address(dup, results, errors, timeout)
 			increment_ip(addy)
 			current++
 		}
@@ -97,8 +97,9 @@ func main() {
 		os.Exit(1)
 	}
 	concurrency := flag.Int("concurrency", 200, "number of simultaneous connections")
+	timeout := flag.Int("timeout", 10, "connection timeout in seconds")
 	flag.Parse()
 	fmt.Println(*concurrency)
 	subnet := flag.Args()[0]
-	scan_subnet(subnet, *concurrency)
+	scan_subnet(subnet, *concurrency, *timeout)
 }
