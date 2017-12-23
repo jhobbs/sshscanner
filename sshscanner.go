@@ -7,6 +7,7 @@ import "math"
 import "net"
 import "time"
 import "flag"
+import "strings"
 
 // Increments an IP address.  Only works for Ipv4.
 // It seems strange that this isn't built into the default net.IP,
@@ -46,7 +47,7 @@ func scan_address(ip net.IP, results chan<- string, errors chan<- string, timeou
 				break
 			}
 		}
-		results <- fmt.Sprintf("%s %s", ip.String(), output[:n])
+		results <- fmt.Sprintf("\"%s\", \"%s\"", ip.String(), strings.TrimSpace(string(output[:n])))
 		if n > 0 {
 			break
 		}
@@ -78,7 +79,7 @@ func scan_subnet(subnet_cidr string, concurrency int, timeout int) {
 		case result := <-results:
 			total++
 			current--
-			fmt.Print(result)
+			fmt.Println(result)
 		case error_msg := <-errors:
 			fmt.Fprint(os.Stderr, error_msg)
 			total++
